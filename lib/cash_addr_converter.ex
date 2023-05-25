@@ -3,10 +3,8 @@ defmodule CashAddrConverter do
   Documentation for `CashAddrConverter`.
   """
 
-  @port_timeout :timer.seconds(5)
-
   @doc """
-  Convert the address to all possible forms.
+  Takes a address string in Legacy or CashAddress format and returns all formats.
 
   ## Examples
 
@@ -20,21 +18,17 @@ defmodule CashAddrConverter do
           "legacy" => "1LLvpNFLKecKdPbRTX33uKgMRqw1qaVUFu"
         }
       }}
-
   """
+  @spec convert(String.t()) :: {:ok, map()} | {:error, %ErlangError{} | {pos_integer(), term()}}
   def convert(address) do
-    path = Application.app_dir(:cash_addr_converter, executable())
-    port = Port.open({:spawn_executable, path}, [:binary, args: [address]])
+    executable = Application.app_dir(:cash_addr_converter, executable())
 
-    receive do
-      {^port, {:data, data}} ->
-        Port.close(port)
-        Jason.decode(data)
-    after
-      @port_timeout ->
-        Port.close(port)
-        {:error, :port_timeout}
+    case System.cmd(executable, [address]) do
+      {data, 0} -> Jason.decode(data)
+      {data, code} -> {:error, {code, data}}
     end
+  rescue
+    error -> {:error, error}
   end
 
   defp executable do
